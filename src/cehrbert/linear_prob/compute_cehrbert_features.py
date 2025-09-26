@@ -22,6 +22,7 @@ from cehrbert.data_generators.hf_data_generator.meds_utils import CacheFileColle
 from cehrbert.data_generators.hf_data_generator.sample_packing_sampler import SamplePackingBatchSampler
 from cehrbert.models.hf_models.hf_cehrbert import CehrBertForPreTraining
 from cehrbert.models.hf_models.tokenization_hf_cehrbert import CehrBertTokenizer
+from cehrbert.runners.data_utils import extract_cohort_sequences
 from cehrbert.runners.hf_cehrbert_finetune_runner import prepare_finetune_dataset
 from cehrbert.runners.runner_util import generate_prepared_ds_path, parse_runner_args
 
@@ -85,21 +86,24 @@ def main():
         LOG.info("Prepared dataset loaded from disk...")
 
     if processed_dataset is None:
-        # Organize them into a single DatasetDict
-        final_splits = prepare_finetune_dataset(data_args, training_args, cache_file_collector)
+        if cehrbert_args.tokenized_full_dataset_path is not None:
+            processed_dataset = extract_cohort_sequences(data_args, cehrbert_args, cache_file_collector)
+        else:
+            # Organize them into a single DatasetDict
+            final_splits = prepare_finetune_dataset(data_args, training_args, cache_file_collector)
 
-        # TODO: temp solution, this column is mixed typed and causes an issue when transforming the data
-        if not data_args.streaming:
-            all_columns = final_splits["train"].column_names
-            if "visit_concept_ids" in all_columns:
-                final_splits = final_splits.remove_columns(["visit_concept_ids"])
+            # TODO: temp solution, this column is mixed typed and causes an issue when transforming the data
+            if not data_args.streaming:
+                all_columns = final_splits["train"].column_names
+                if "visit_concept_ids" in all_columns:
+                    final_splits = final_splits.remove_columns(["visit_concept_ids"])
 
-        processed_dataset = create_cehrbert_finetuning_dataset(
-            dataset=final_splits,
-            concept_tokenizer=cehrgpt_tokenizer,
-            data_args=data_args,
-            cache_file_collector=cache_file_collector,
-        )
+            processed_dataset = create_cehrbert_finetuning_dataset(
+                dataset=final_splits,
+                concept_tokenizer=cehrgpt_tokenizer,
+                data_args=data_args,
+                cache_file_collector=cache_file_collector,
+            )
         if not data_args.streaming:
             processed_dataset.save_to_disk(prepared_ds_path)
             processed_dataset.cleanup_cache_files()
@@ -195,30 +199,30 @@ def main():
     )
 
     # Loading demographics
-    print("Loading demographics as a dictionary")
-    demographics_df = pd.concat(
-        [
-            pd.read_parquet(
-                data_dir,
-                columns=[
-                    "person_id",
-                    "index_date",
-                    "gender_concept_id",
-                    "race_concept_id",
-                ],
-            )
-            for data_dir in [data_args.data_folder, data_args.test_data_folder]
-        ]
-    )
-    demographics_df["index_date"] = demographics_df.index_date.dt.date
-    demographics_dict = {
-        (row["person_id"], row["index_date"]): {
-            "gender_concept_id": row["gender_concept_id"],
-            "race_concept_id": row["race_concept_id"],
-        }
-        for _, row in demographics_df.iterrows()
-    }
-
+    # print("Loading demographics as a dictionary")
+    # demographics_df = pd.concat(
+    #     [
+    #         pd.read_parquet(
+    #             data_dir,
+    #             columns=[
+    #                 "person_id",
+    #                 "index_date",
+    #                 "gender_concept_id",
+    #                 "race_concept_id",
+    #             ],
+    #         )
+    #         for data_dir in [data_args.data_folder, data_args.test_data_folder]
+    #     ]
+    # )
+    # demographics_df["index_date"] = demographics_df.index_date.dt.date
+    # demographics_dict = {
+    #     (row["person_id"], row["index_date"]): {
+    #         "gender_concept_id": row["gender_concept_id"],
+    #         "race_concept_id": row["race_concept_id"],
+    #     }
+    #     for _, row in demographics_df.iterrows()
+    # }
+    demographics_dict = {}
     data_loaders = [("train", train_loader), ("test", test_dataloader)]
 
     for split, data_loader in data_loaders:
@@ -272,6 +276,11 @@ def main():
                         cls_token_index = torch.argmax((cls_token_indices).to(torch.int), dim=-1)
                         features = cehrbert_output.last_hidden_state[..., cls_token_index, :].squeeze(axis=0)
                     features = features.cpu().float().detach().numpy()
+
+                # This might happen sometimes
+                if len(features) == cehrbert_model.config.hidden_size:
+                    features = [features]
+
                 assert len(features) == len(labels), "the number of features must match the number of labels"
                 # Flatten features or handle them as a list of arrays (one array per row)
                 features_list = [feature for feature in features]
