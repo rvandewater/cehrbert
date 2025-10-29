@@ -8,6 +8,7 @@ from cehrbert.data_generators.hf_data_generator.meds_to_cehrbert_conversion_rule
     MedsToBertMimic4,
     MedsToCehrBertConversion,
     MedsToCehrbertOMOP,
+    MedsToCehrbertOMOPTransforms,
 )
 
 # Create an enum dynamically from the list
@@ -119,6 +120,7 @@ class DataTrainingArguments:
     meds_to_cehrbert_conversion_type: Literal[
         MedsToBertMimic4.__name__,
         MedsToCehrbertOMOP.__name__,
+        MedsToCehrbertOMOPTransforms.__name__,
     ] = dataclasses.field(
         default=MedsToCehrbertOMOP.__name__,
         metadata={
