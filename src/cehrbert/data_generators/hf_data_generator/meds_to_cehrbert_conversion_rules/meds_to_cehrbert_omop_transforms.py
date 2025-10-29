@@ -6,17 +6,17 @@ from cehrbert.data_generators.hf_data_generator.meds_to_cehrbert_conversion_rule
 )
 
 
-class MedsToCehrbertOMOP_Transforms(MedsToCehrBertConversion):
+class MedsToCehrbertOMOPTransforms(MedsToCehrBertConversion):
 
     def __init__(self, **kwargs):
         self.disconnect_problem_list_events = kwargs.get("disconnect_problem_list_events", False)
         super().__init__(**kwargs)
 
     def _create_visit_matching_rules(self) -> List[str]:
-        return ["Visit/"]
+        return ["Visit//"]
 
     def _create_ed_admission_matching_rules(self) -> List[str]:
-        return ["Visit/ER"]
+        return ["Visit//ER//start"]
 
     def _create_admission_matching_rules(self) -> List[str]:
         return [
