@@ -17,6 +17,7 @@ from cehrbert.data_generators.hf_data_generator.meds_to_cehrbert_conversion_rule
     MedsToBertMimic4,
     MedsToCehrBertConversion,
     MedsToCehrbertOMOP,
+    MedsToCehrbertOMOPTransforms
 )
 from cehrbert.med_extension.schema_extension import Event
 
@@ -333,6 +334,13 @@ def generate_demographics_and_patient_blocks(
             default_visit_id=conversion.default_visit_id,
         )
     elif isinstance(conversion, MedsToCehrbertOMOP):
+        return omop_meds_generate_demographics_and_patient_blocks(
+            patient=patient,
+            conversion=conversion,
+            prediction_time=prediction_time,
+            observation_window=observation_window,
+        )
+    elif isinstance(conversion, MedsToCehrbertOMOPTransforms):
         return omop_meds_generate_demographics_and_patient_blocks(
             patient=patient,
             conversion=conversion,
