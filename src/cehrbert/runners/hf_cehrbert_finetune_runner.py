@@ -424,12 +424,13 @@ def do_predict(test_dataloader: DataLoader, model_args: ModelArguments, training
     test_losses = []
     with torch.no_grad():
         for index, batch in enumerate(tqdm(test_dataloader, desc="Predicting")):
-            person_ids = batch.pop("person_id").numpy().squeeze().astype(int)
+            # np.atleast_1d keeps the batch dimension that squeeze() drops when a batch holds a single sample
+            person_ids = np.atleast_1d(batch.pop("person_id").numpy().squeeze()).astype(int)
             # Extract and process index_dates
             index_dates = None
             if "index_date" in batch:
                 try:
-                    timestamps = batch.pop("index_date").numpy().squeeze().tolist()
+                    timestamps = np.atleast_1d(batch.pop("index_date").numpy().squeeze()).tolist()
                     # Handle potential NaN or invalid timestamps
                     index_dates = [datetime.fromtimestamp(ts) if not np.isnan(ts) else None for ts in timestamps]
                 except (ValueError, OverflowError, TypeError):
@@ -440,8 +441,8 @@ def do_predict(test_dataloader: DataLoader, model_args: ModelArguments, training
             test_losses.append(output.loss.item())
 
             # Collect logits and labels for prediction
-            logits = output.logits.cpu().numpy().squeeze()
-            labels = batch["classifier_label"].cpu().numpy().squeeze().astype(bool)
+            logits = np.atleast_1d(output.logits.cpu().numpy().squeeze())
+            labels = np.atleast_1d(batch["classifier_label"].cpu().numpy().squeeze()).astype(bool)
             probabilities = sigmoid(logits)
             # Save predictions to parquet file
             test_prediction_pd = pd.DataFrame(
